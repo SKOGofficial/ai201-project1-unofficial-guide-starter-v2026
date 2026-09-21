@@ -22,6 +22,7 @@ to it, write down what you saw, and move on. That's a real observation about
 your pipeline, not giving up.
 """
 
+import re
 from dataclasses import dataclass
 
 import config
@@ -80,24 +81,124 @@ def fallback_split(
     return chunks
 
 
+def _split_long(text: str, size: int, overlap: int) -> list[str]:
+    """
+    Cut one over-long paragraph into windows, preferring sentence ends.
+
+    Only paragraphs above CHUNK_SIZE ever reach here — on city_guides that is
+    1 of 115. The overlap exists for exactly this case: when a paragraph has to
+    come apart, neighbouring pieces share CHUNK_OVERLAP characters, so a
+    sentence straddling the cut still appears whole in one of them.
+    """
+    pieces: list[str] = []
+    start = 0
+
+    while start < len(text):
+        window = text[start : start + size]
+
+        # Prefer to end on a sentence boundary — but not by giving up more than
+        # half the window to find one.
+        if start + size < len(text):
+            cut = max(window.rfind(". "), window.rfind("! "), window.rfind("? "))
+            if cut > size // 2:
+                window = window[: cut + 1]
+
+        piece = window.strip()
+        if piece:
+            pieces.append(piece)
+
+        step = len(window) - overlap
+        start += step if step > 0 else len(window)
+
+    return pieces
+
+
+def _headings_only(block: str) -> bool:
+    """True if every line is a markdown heading, so the block has no content."""
+    return all(line.startswith("#") for line in block.splitlines() if line.strip())
+
+
+def _blocks(text: str) -> list[str]:
+    """
+    One document into paragraph-sized blocks.
+
+    A markdown heading is not a thought on its own: "## Getting there" is 16
+    characters and answers nothing. Because it falls under CHUNK_MIN it gets
+    carried forward onto the paragraph beneath it, which is how each chunk ends
+    up naming the topic it belongs to.
+    """
+    blocks: list[str] = []
+    carry = ""
+
+    for raw in re.split(r"\n\s*\n", text):
+        block = raw.strip()
+        if not block:
+            continue
+
+        if carry:
+            block = f"{carry}\n{block}"
+
+        # Too small to stand alone, or all heading and no content — either way
+        # it waits and joins the paragraph beneath it. Length alone is not
+        # enough: a document title stacked on a section heading clears
+        # CHUNK_MIN between them and still says nothing.
+        if len(block) < config.CHUNK_MIN or _headings_only(block):
+            carry = block
+            continue
+
+        carry = ""
+        blocks.append(block)
+
+    # A short tail with nothing following it joins the previous block rather
+    # than becoming a fragment. This is where the starter's 2-character chunk
+    # on advice_threads came from.
+    if carry:
+        if blocks:
+            blocks[-1] = f"{blocks[-1]}\n{carry}"
+        else:
+            blocks.append(carry)
+
+    return blocks
+
+
 def split_documents(documents: list[Document]) -> list[Chunk]:
     """
-    Split documents into chunks. ⚠️ REPLACE THE BODY OF THIS IN MILESTONE 3.
+    Split documents on paragraph boundaries rather than character counts.
 
-    Right now it just calls the fallback. That is the plain, generic behaviour
-    the brief is talking about.
+    The strategy, and why it is this one and not the starter's fixed window:
 
-    When you write your own strategy, set `produced_by` to
-    "chunker.py::split_documents" so your README's Sample Chunks section names
-    the right function. `app.py chunks` prints that string for you.
-
-    Things worth thinking about before you write any code:
-      - Are your documents short posts or long guides?
-      - Is the useful information in one sentence, or spread over a paragraph?
-      - Would splitting on paragraph breaks keep more thoughts intact than
-        splitting on a character count?
+      - One paragraph is one chunk. In city_guides the median body paragraph is
+        243 characters and each is a single idea — bus frequencies, or opening
+        hours, or where to park. Cutting every 800 characters ignored those
+        boundaries and produced chunks spanning three sections at once.
+      - CHUNK_SIZE (400) is a ceiling, not a target width. Only 1 of 115
+        paragraphs exceeds it, so almost nothing gets split; the one that does
+        goes through `_split_long` with CHUNK_OVERLAP (100) shared characters.
+      - CHUNK_MIN (50) keeps fragments out. Nothing below it survives as its
+        own chunk — it merges into a neighbour instead.
     """
-    return fallback_split(documents)
+    chunks: list[Chunk] = []
+
+    for doc in documents:
+        index = 0
+        for block in _blocks(doc.text):
+            if len(block) <= config.CHUNK_SIZE:
+                pieces = [block]
+            else:
+                pieces = _split_long(block, config.CHUNK_SIZE, config.CHUNK_OVERLAP)
+
+            for piece in pieces:
+                chunks.append(
+                    Chunk(
+                        text=piece,
+                        source=doc.source,
+                        index=index,
+                        produced_by="chunker.py::split_documents",
+                    )
+                )
+                index += 1
+
+    return chunks
 
 
 def describe(chunks: list[Chunk]) -> str:
