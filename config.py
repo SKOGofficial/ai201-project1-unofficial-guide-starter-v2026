@@ -44,6 +44,9 @@ TOP_K = 5               # how many chunks to pull back per question
 # 0.6 is a reasonable starting point, not a right answer. Milestone 4 has you
 # measure your own two groups of distances and put the cutoff in the gap.
 # Most corpora land somewhere between 0.45 and 0.75.
+#
+# Measured on city_guides: in-corpus best distances 0.25–0.51, out-of-corpus
+# 0.80–0.97. 0.6 sits in that gap. See README "My relevance cutoff".
 THRESHOLD = 0.6
 
 

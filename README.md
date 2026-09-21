@@ -145,27 +145,75 @@ long days, everything running, and the students gone.
 <!-- One complete question and answer, pasted as text, with the source line
      visible. Milestone 4. -->
 
-**Question:**
+**Question:** What is there to see in Pellew Sands?
 
 **Answer:**
 
 ```
+$ python app.py ask "What is there to see in Pellew Sands?"
+  (best distance 0.330, cutoff 0.6)
+
+In Pellew Sands, there is an 1890s pier (with the surviving half open and free), municipal gardens located behind the seafront, and a two-mile beach of hard sand (*guide_pellew_sands.md*).
+
+Sources retrieved: guide_accessibility.md, guide_eating.md, guide_elder_ness.md, guide_pellew_sands.md
 ```
 
-**My relevance cutoff:**
+And an off-topic question, refused by the gate before the model is ever called:
 
-<!-- The number you set in config.py, and how you got there.
+```
+$ python app.py ask "What is the capital of Mongolia?"
+  (best distance 0.803, cutoff 0.6)
 
-     You ran five questions your corpus covers and the five in OUT_OF_SCOPE
-     that it clearly doesn't, and wrote down the best distance for each. What
-     did those two groups look like? Where was the gap? Put the actual numbers
-     here — the table below wants all ten rows.
+I don't have enough information about that.
 
-     Milestone 4. -->
+0 model calls this session
+```
+
+**My relevance cutoff:** `THRESHOLD = 0.6` (kept the starter value, now backed
+by measurement). `TOP_K = 5`.
 
 | Question | In corpus? | Best distance |
 |---|---|---|
-|  |  |  |
+| How long does it take to walk the town of Brightwater? | Yes | 0.253 |
+| What is there to see in Pellew Sands? | Yes | 0.330 |
+| When is the best time to book a hotel in Marchwood if I am on a low budget? | Yes | 0.407 |
+| What is a central location for my friends to meetup … in Kestrelford? | Yes | 0.483 |
+| If I need to get basic items; what time should I got shopping in Elder Ness? | Yes | 0.510 |
+| What is the capital of Mongolia? | No | 0.803 |
+| How do I write a for loop in Rust? | No | 0.813 |
+| What is the recommended dosage of ibuprofen for a headache? | No | 0.849 |
+| How do I change the oil in a diesel engine? | No | 0.892 |
+| Who won the 1994 World Cup? | No | 0.975 |
+
+**The two groups.** In-corpus questions landed between 0.25 and 0.51;
+out-of-corpus between 0.80 and 0.97. The gap runs from 0.51 to 0.80, and 0.6
+sits in its lower half on purpose: it leaves 0.09 of headroom above my
+worst-scoring real question (the Elder Ness one, which has a typo in it and is
+worded loosely), while still refusing "What is the weather like in Tokyo in
+April?" at 0.66 — a question that borrows this corpus's vocabulary of months
+and seasons and would have slipped through a 0.7 cutoff.
+
+**What 0.6 gets wrong.** I also tried questions that *sound* like they belong
+but that the guides don't answer: a cinema in Marchwood (0.50), a hotel with a
+pool in Brightwater (0.47), the best sushi in the region (0.53), an airport taxi
+fare to Thornby Wells (0.52). They land inside the in-corpus range, so no
+distance cutoff can separate them — dropping the cutoff far enough to refuse
+them would also refuse two real questions. All four pass the gate. The
+grounding instruction in `generate.py` caught every one of them ("I don't have
+enough information…"), so I left it as the starter wrote it: the gate handles
+the clear misses, the prompt handles these.
+
+**A low distance is not a correct chunk.** The Brightwater walking question had
+the *best* distance of all ten (0.253) and its top 5 did not contain the answer.
+They were river-path and train-time chunks that share the words "Brightwater",
+"walk" and "minutes". The real answer ("walkable end to end in about 35
+minutes", `guide_brightwater.md`) ranks 15th at 0.416, because that chunk only
+carries its `## Getting around` heading, never the town's name. Raising top-k
+to 15 to reach it would bury every other answer in noise, so I left top-k at 5
+(4 would have lost the Kestrelford answer, which sits at rank 5). The model
+correctly said it didn't have enough information rather than guessing. This is
+a chunking problem — carrying the document title onto each chunk — and a
+candidate for the Unit 2 improvement.
 
 ## How I Used AI
 
