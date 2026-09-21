@@ -22,10 +22,27 @@ pipeline earns credit; _"80% seemed reasonable"_ does not.
 For at least 4 of my 5 test questions, the retrieved chunks include one that
 contains the answer.
 
-**Why this target:**
-
 <!-- e.g. "One of my questions is about a topic only two documents mention, so
      I expect that one to be hard." -->
+
+**Why this target:**
+
+I wrote my five questions against documents I had already read, so every one of
+them has an answer that exists somewhere in the corpus: the walking time across
+Brightwater, the shop hours in Elder Ness, what there is to see in Pellew
+Sands. The questions are relevant to the chunks by construction. That means
+this criterion is not testing whether my corpus covers the questions — I
+already know it does. It is testing whether retrieval can find the chunk that
+covers them, which is a different thing and the only part that can fail.
+
+I'm allowing one miss rather than demanding 5 of 5 because my questions are not
+worded the way the guides are. The guides are organised under section headings
+like `## Getting around` and `## When to go`, written in flat declarative
+sentences. My questions are phrased the way a person would actually ask one —
+"If I need to get basic items; what time should I got shopping in Elder Ness?"
+Where a question and the sentence holding its answer share almost no
+vocabulary, embedding similarity has to bridge that gap on meaning alone, and I
+expect it to fail on at least one of the five.
 
 ---
 
@@ -33,10 +50,33 @@ contains the answer.
 
 Every answer the system produces names at least one source document.
 
-**Why this target:**
-
 <!-- Why all five and not four? What about your setup makes that achievable —
      or what would have to go wrong for it not to be? -->
+
+**Why this target:**
+
+All five, because citing a source is a requirement of this system rather than a
+score to average. Every answer has to point back at the document it came from —
+an answer about Pellew Sands that doesn't say `guide_pellew_sands.md` gives me
+no way to check it, and an uncheckable answer is the thing this whole pipeline
+exists to avoid. Four out of five would mean one answer a run that the reader
+has to take on trust. There is no version of that I'd accept, so the target is
+the only one the criterion can honestly have.
+
+It's achievable at 100% because naming a source isn't left to the model's
+discretion. Two separate things produce one. `generate.py` puts
+`[from <filename>]` above every excerpt in the prompt and its system
+instruction tells the model to name the document it used — but even if the
+model ignores that, `app.py` prints `Sources retrieved:` from the retrieval
+results themselves, before generation is involved at all. One of those two
+paths is deterministic.
+
+For this to come out below 5 of 5, something would have to break upstream of
+the model: retrieval returning nothing, or a chunk reaching the prompt without
+the `source` field that `Chunk` carries from `ingest.py`. Both would be bugs in
+my own code rather than the model behaving unpredictably. Note that this
+criterion only asks whether a source is _named_, not whether it is the right
+one — criterion 5 is where the content gets checked against the chunk.
 
 ---
 
@@ -51,10 +91,34 @@ in at least 4 of 5 tries.
      what happened into your run log. Swap them for your own if you'd rather —
      just keep five of them, or the "4 of 5" above has nothing to be 4 of. -->
 
-**Why this target:**
-
 <!-- What did your distances look like when you set the cutoff in Milestone 4?
      Was there a clean gap, or did the two groups overlap? -->
+
+**Why this target:**
+
+The two groups don't overlap at all. My worst real question (Elder Ness, 0.510)
+and the closest out-of-corpus one (Mongolia, 0.803) are 0.293 apart, and
+nothing lands in between — so any cutoff in that range separates them
+perfectly. I kept `THRESHOLD = 0.6`, which sits in the lower half of the gap
+on purpose: it leaves 0.09 of headroom above the Elder Ness question, which is
+my worst-worded one and the one most likely to drift, while still refusing
+"What is the weather like in Tokyo in April?" at 0.66 — a question that borrows
+this corpus's vocabulary of months and seasons and would have slipped through a
+0.7 cutoff.
+
+Against distances that clean, 4 of 5 is a conservative target and I expect 5 of
+5 — these five questions are from a different world entirely, and nothing about
+a diesel engine or the 1994 World Cup resembles a travel guide. The margin is
+there for a different reason: the gate has to keep working when the question is
+_nearly_ in scope, and the genuinely hard cases aren't in `OUT_OF_SCOPE` at
+all. Questions that borrow this corpus's vocabulary without being answerable
+from it — a cinema in Marchwood, a hotel with a pool in Brightwater — score
+between 0.47 and 0.53, inside my in-corpus range, and no distance cutoff can
+refuse them without also refusing real questions. Those get caught by the
+grounding instruction in the prompt instead, not by this gate. So this
+criterion measures the easy half of refusal honestly, and I'd rather it say
+that plainly than claim a perfect score that a harder set of questions
+wouldn't support.
 
 ---
 
