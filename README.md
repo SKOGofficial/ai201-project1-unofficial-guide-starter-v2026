@@ -22,11 +22,22 @@
 
 ## What This Does
 
-<!-- Three or four sentences. Which corpus you picked, and the kinds of
-     questions your system answers. Write it for someone who has never seen
-     this repo.
-
-     Milestone 5. -->
+This is a question-answering system built over `corpora/city_guides` — 14
+travel guides to a fictional English region, covering towns and villages like
+Brightwater, Marchwood, Kestrelford and Elder Ness, each written in labelled
+sections on getting there, getting around, eating, staying, and when to visit.
+You ask it a question in plain English; it finds the five passages of those
+guides closest to your question, checks that the closest one is actually
+related to what you asked, and then has a language model answer using only
+those passages, naming the guide the answer came from. Questions the guides
+don't cover — the capital of Mongolia, the dosage of ibuprofen — are refused
+before the model is ever called, so the system says "I don't have enough
+information about that" rather than inventing an answer. It handles specific
+factual questions ("how long does it take to walk across Brightwater?") far
+better than open-ended ones, and its known weak spot is questions that sound
+like the corpus but aren't in it — a hotel with a pool, the best sushi in the
+region — which get past the relevance gate and are caught only by the
+grounding instruction in the prompt.
 
 ## Chunking Strategy
 
@@ -217,18 +228,37 @@ candidate for the Unit 2 improvement.
 
 ## How I Used AI
 
-<!-- Two specific moments. For each: what you asked for, what came back, and
-     what you changed about it.
+**1. Writing the chunker from my numbers, and catching what it got wrong.**
+I had already decided on 400 characters maximum, 50 minimum and 100 overlap,
+and my reason for them — that paragraphs in these guides are around 300
+characters and each one is a separate idea. I asked Claude to replace
+`split_documents` with that strategy. What came back worked and respected all
+three numbers, but it decided whether a block was "too small to stand alone"
+using length and nothing else. That let two chunks through that were pure
+heading stacks: `guide_eating.md#0` was `# Eating across the region` followed
+by `## The pattern worth knowing` and nothing else — 55 characters of headings,
+which cleared my 50-character floor precisely because two headings had been
+glued together. It is exactly the "heading with no content under it" case the
+brief warns about, and a length check can't see it. The fix was to test for
+content rather than size: `_headings_only()` in `chunker.py` now carries any
+block with no body text forward onto the paragraph beneath it, whatever its
+length. That dropped city_guides from 119 chunks to 117 and moved the shortest
+chunk from 50 characters to 71.
 
-     "I asked Claude to write the chunking function from my notes. It ignored
-     the overlap, so I added that myself" is the level of detail we're after.
-     "I used AI to help me code" is not.
-
-     Milestone 5. -->
-
-**1.**
-
-**2.**
+**2. Turning a vague criterion into one I could count.** For acceptance
+criterion 4 I wrote "only information from the relevant chunk is used as the
+source as to not confuse the output llm." I knew what I meant but it had no
+number in it and no way to come out true or false, so I asked Claude to make it
+measurable. The first thing it came back with was an argument that my sentence
+belonged under criterion 5 instead, because it described what the generator
+does with context rather than anything about the chunks — and it rewrote
+criterion 5 around it. I disagreed and put it back under 4, because the thing I
+actually cared about was that a chunk shouldn't arrive carrying three topics at
+once. Restating it as a property of the chunk rather than of the model gave me
+something countable: at least 4 of 5 sampled chunks contain material from
+exactly one `##` section. The evidence for why it was worth measuring came out
+of the starter's own output — `guide_corry_vale.md#2` was a single 800-character
+chunk holding where to stay, when to go, and practical notes together.
 
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
