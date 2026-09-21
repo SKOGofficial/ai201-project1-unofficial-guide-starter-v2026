@@ -4,13 +4,13 @@ Five criteria that say what "working" means for this system, written in unit 1
 **before** any results existed.
 
 An acceptance criterion names a target: a number, a count, a rate, or something
-a person could plainly observe. *"Retrieval works"* is an opinion. *"For at
+a person could plainly observe. _"Retrieval works"_ is an opinion. _"For at
 least 4 of my 5 test questions, the top results include a chunk containing the
-answer"* is a criterion.
+answer"_ is a criterion.
 
 Under each one, write a sentence or two on **why that target** and not a
 stricter or looser one. A reason that says something about your corpus or your
-pipeline earns credit; *"80% seemed reasonable"* does not.
+pipeline earns credit; _"80% seemed reasonable"_ does not.
 
 > Missing your own targets next unit costs you nothing. Setting a target so
 > easy you can't miss it does.
@@ -23,6 +23,7 @@ For at least 4 of my 5 test questions, the retrieved chunks include one that
 contains the answer.
 
 **Why this target:**
+
 <!-- e.g. "One of my questions is about a topic only two documents mention, so
      I expect that one to be hard." -->
 
@@ -33,6 +34,7 @@ contains the answer.
 Every answer the system produces names at least one source document.
 
 **Why this target:**
+
 <!-- Why all five and not four? What about your setup makes that achievable —
      or what would have to go wrong for it not to be? -->
 
@@ -50,6 +52,7 @@ in at least 4 of 5 tries.
      just keep five of them, or the "4 of 5" above has nothing to be 4 of. -->
 
 **Why this target:**
+
 <!-- What did your distances look like when you set the cutoff in Milestone 4?
      Was there a clean gap, or did the two groups overlap? -->
 
@@ -57,41 +60,58 @@ in at least 4 of 5 tries.
 
 ## 4. Something about your chunks
 
-<!-- YOU WRITE THIS ONE.
+Only information from the relevant chunk is used as the source, so as not to
+confuse the output LLM.
 
-     How would you know if your chunks were the right size? Name something
-     countable or observable.
-
-     Examples of the right shape — don't copy these, they should come from
-     what you actually saw in Milestone 3:
-       - "At least 4 of 5 sampled chunks read as a complete thought, with no
-          sentence cut in half at either end."
-       - "No chunk is shorter than 200 characters, since anything below that
-          in my corpus turned out to be a heading with no content under it." -->
-
-
+Stated as a target: at least 4 of 5 sampled chunks contain material from
+exactly one `##` section of their source document. No chunk spans two topics.
 
 **Why this target:**
 
+My documents are all built the same way — `## Getting there`, `## Getting
+around`, `## Eat and drink`, `## Where to stay`, `## When to go`,
+`## Practical notes` — and the plain 800-character chunker ignores every one of
+those boundaries. `guide_corry_vale.md#2` is a single chunk carrying three
+sections at once: where to stay, when to go, and practical notes. If someone
+asks where to stay in Corry Vale and that chunk comes back, the model also
+receives the gritting schedule and the location of the nearest hospital, and
+has to decide on its own to ignore them. That's the confusion I want to
+prevent, and one topic per chunk is the version of it I can actually count.
 
+I'm allowing one miss in five because a couple of these sections are long
+enough that they have to be split, and a chunk that is half of one section is
+still only about one topic — I'd rather the target tolerate that than punish
+it.
 
 ---
 
 ## 5. Your choice
 
-<!-- YOU WRITE THIS ONE TOO.
+I think the response should be able to not only take right context to answer
+the question, but also reason on it. For example if the chunk says that the
+store is open from 12-4 and the user asks what times to avoid, it should give
+times outside 12-4.
 
-     Pick something you actually care about getting right. It could be about
-     speed, about refusals, about a particular kind of question your corpus
-     handles badly, about source attribution being correct rather than merely
-     present — anything, as long as it names a number or an observable
-     outcome. -->
-
-
+Stated as a target: for at least 4 of my 5 test questions, the answer states
+the conclusion in the terms the question asked for, rather than only the fact
+it was derived from. I score each answer yes/no against the chunk it came
+from: did it hand me the answer, or did it hand me the raw fact and leave the
+last step to me?
 
 **Why this target:**
 
+Four of my five questions are built this way on purpose. `guide_elder_ness.md`
+never says when to go shopping — it says the shop "closes at 5pm and all day
+Sunday". A passing answer has to turn that into _go before 5pm, not on a
+Sunday_; an answer that just repeats the closing time has retrieved correctly
+and still not answered me. Same shape for the Marchwood budget question and
+the Kestrelford meetup question: the fact is in the corpus, the form I asked
+for is not.
 
+I'm allowing one miss rather than demanding 5 of 5 because a question whose
+chunk never arrives can't be reasoned over at all, and criterion 1 already
+allows one retrieval failure. Without that allowance this criterion would just
+be measuring retrieval a second time.
 
 ---
 
