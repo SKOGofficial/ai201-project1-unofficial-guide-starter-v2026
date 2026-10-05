@@ -177,6 +177,34 @@ chunk never arrives can't be reasoned over at all, and criterion 1 already
 allows one retrieval failure. Without that allowance this criterion would just
 be measuring retrieval a second time.
 
+> **Revised in unit 2:** For at least 4 of my 5 test questions, the answer
+> names something the reader could act on, stated in the terms the question
+> asked for. A "when" question needs a time or a range; an answer that names
+> only times to *avoid* does not pass. A "where" question needs a place.
+>
+> **Why revised:** I could not apply the original wording the same way twice.
+> It asks for "the conclusion in the terms the question asked for, rather than
+> only the fact it was derived from" — and on Marchwood I had no consistent way
+> to decide. I asked when to book; every run answered "avoid conference weeks
+> in March and October". That *is* a conclusion and it *is* derived rather than
+> copied, so by the letter of the original it arguably passes. It also plainly
+> does not tell me when to book, so by the intent it plainly fails. I scored it
+> both ways before settling, which is the definition of a criterion I cannot
+> measure consistently.
+>
+> This revision does not rescue the number. Under the revised rule Marchwood
+> still fails all three runs, the counts stay 2, 3, 3, and the verdict stays
+> MISSED against the original target of 4 of 5. What it buys is a rule the
+> next person can apply without guessing what I meant.
+>
+> **A limitation worth stating rather than hiding:** this criterion only bites
+> on three of my five questions. Pellew Sands is a plain listing with nothing
+> to infer, so it passes for free. Brightwater cannot be scored at all while
+> retrieval never returns the chunk — there is no reasoning to judge. That
+> leaves Elder Ness, Marchwood and Kestrelford as the real sample. A target of
+> 4 of 5 over an effective sample of 3 was close to unreachable the day I wrote
+> it, and I did not notice that until I tried to score it.
+
 ---
 
 <!-- ─────────────────────────────────────────────────────────────────────────

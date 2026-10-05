@@ -286,11 +286,11 @@ constant across the three. Criteria 2 and 5 are the only ones that can move.
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 | 4 | 4 | 4 |  |
-| 2. Every answer names a source | 5 of 5 | 5 | 5 | 5 |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 | 5 | 5 | 5 |  |
-| 4. One `##` section per chunk | 4 of 5 sampled | 5 | 5 | 5 |  |
-| 5. Answer states the conclusion in the form asked for | 4 of 5 | 2 | 3 | 3 |  |
+| 1. Retrieved chunk contains the answer | 4 of 5 | 4 | 4 | 4 |  **MISSED** |
+| 2. Every answer names a source | 5 of 5 | 5 | 5 | 5 |  **MET** |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5 | 5 | 5 |  **MET** |
+| 4. One `##` section per chunk | 4 of 5 sampled | 5 | 5 | 5 |  **MET** |
+| 5. Answer states the conclusion in the form asked for | 4 of 5 | 2 | 3 | 3 |  **MISSED** |
 
 ### A note on measurement, before the numbers
 
@@ -516,22 +516,74 @@ I asked when to book. It told me when not to.
 
 ## Verdicts
 
-<!-- MET or MISSED for each of the five, against the target you wrote last
-     unit — not a new one. Plus a sentence on how you decided. That sentence
-     matters most where it was close.
+Judged against the targets as written in unit 1, not against new ones. The
+rule I applied: the target has to hold on every run, not on average and not
+usually.
 
-     If your target said 4 of 5 and your runs came out 4, 3, 4, that's a MISS.
-     The target has to hold, not show up occasionally.
+| # | Criterion | Target | Runs | Verdict | How I decided |
+|---|---|---|---|---|---|
+| 1 | Retrieved chunk contains the answer | 4 of 5 | 4, 4, 4 | **MISSED** | The count hit the target and I still called it a miss. Two of the four passes did not come from retrieval working — see below. |
+| 2 | Every answer names a source | 5 of 5 | 5, 5, 5 | **MET** | 15 of 15 answers named a `.md` file, including the three that correctly refused to answer. |
+| 3 | Gate stops out-of-corpus questions | 4 of 5 | 5, 5, 5 | **MET** | All five refused, the closest at 0.803 against a 0.6 cutoff. Not close. |
+| 4 | One `##` section per chunk | 4 of 5 sampled | 5, 5, 5 | **MET** | 5 of 5 sampled, and 117 of 117 corpus-wide. Not close. |
+| 5 | States the conclusion in the form asked for | 4 of 5 | 2, 3, 3 | **MISSED** | Best run was still a full point short. No reading of the runs rescues it. |
 
-     Milestone 2. -->
+### Criterion 1, and why I overruled my own count
 
-| # | Criterion | Verdict | How I decided |
-|---|---|---|---|
-| 1 |  |  |  |
-| 2 |  |  |  |
-| 3 |  |  |  |
-| 4 |  |  |  |
-| 5 |  |  |  |
+This is the one that deserves the paragraph. The count was 4 of 5 against a
+target of 4 of 5, which is MET by arithmetic. I recorded it as MISSED anyway,
+after arguing the opposite verdict as hard as I could. Three things came out of
+that:
+
+**The Elder Ness pass came from the corpus repeating itself, not from
+retrieval.** The shop hours exist twice. Retrieval returned
+`guide_eating.md#8`, the regional eating guide, which carries "Elder Ness has
+one shop, closed Sundays and after 5pm". It also returned
+`guide_elder_ness.md` — but chunk `#0`, the intro paragraph about birds and the
+bird observatory, not the chunk holding the hours. So retrieval reached into
+the right document and pulled the wrong section of it, and was rescued by a
+duplicate elsewhere. If that fact had been stated once, this is a second miss
+and the count is 3 of 5.
+
+**The Kestrelford pass survived on the last available slot.**
+`guide_kestrelford.md#2` came back at rank 5 of 5, distance 0.5566, underneath
+three chunks that do not answer the question — pub opening hours, a note about
+a steep hill, and a car park. `TOP_K = 5` is a number in `config.py`. At 4 it
+is 3 of 5.
+
+**Only one pass was rank 1, and that was the duplicate.** The four passes
+arrived at ranks 1, 2, 3 and 5.
+
+The honest counter-argument, which I want on the record because it is a good
+one: the criterion as written asks whether "the retrieved chunks include one
+that contains the answer", and for four questions they did. `TOP_K = 5` was set
+in unit 1 before any results existed, so it is not a number tuned afterwards to
+make this pass. The criterion says nothing about which file the answer comes
+from, and a reader handed `guide_eating.md#8` does get the right answer. By the
+letter of what I wrote, this is MET.
+
+I called it MISSED because the "Why this target" I wrote in unit 1 says what
+the criterion was for: *"It is testing whether retrieval can find the chunk
+that covers them, which is a different thing and the only part that can fail."*
+Measured against that, two of four passes are not evidence that retrieval
+found anything. Marking it MET would have meant scoring the arithmetic and
+ignoring the sentence explaining why the arithmetic was there.
+
+### Criterion 5 was revised, and the revision changes nothing
+
+I appended a revision to criterion 5 in `criteria.md`, underneath the original
+and without touching it. The original could not be measured consistently:
+Marchwood's answer — "avoid conference weeks in March and October" — *is* a
+derived conclusion rather than a copied fact, so by the letter of the original
+wording it arguably passes, and it also plainly fails to tell me when to book.
+I scored it both ways before settling. The revised rule says a "when" question
+needs a time or a range and that naming only times to avoid is not a pass.
+
+Under the revised rule Marchwood still fails all three runs, the counts stay
+2, 3, 3, and the verdict stays MISSED against the original target of 4 of 5.
+The revision buys a rule someone else could apply without guessing what I
+meant. It does not buy a better number, and the verdict above is scored
+against the unit 1 target either way.
 
 ## Diagnoses
 
