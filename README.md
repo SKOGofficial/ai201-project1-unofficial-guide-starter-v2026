@@ -737,32 +737,162 @@ chunk.
 
 **What I changed:**
 
+One change: `chunker.py::split_documents` now prefixes every chunk with its
+document's `# Title` line. Two new helpers, `_doc_title` and `_with_title`, and
+one line changed in the loop. A chunk that used to read
+
+```
+## Getting around
+The town is walkable end to end in about 35 minutes.
+```
+
+now reads
+
+```
+# Brightwater
+## Getting around
+The town is walkable end to end in about 35 minutes.
+```
+
+The title is restored verbatim rather than paraphrased — it is the document's
+own words put back where the section split removed them, not new text written
+into the corpus. Chunk `#0` of each document already carried it, so those are
+left alone rather than repeating it. The chunk count is unchanged at 117; only
+the text changed. The index was rebuilt with `app.py index`.
+
+Applied to **every** document uniformly, including the regional guides whose
+titles ("Walking in the region") strengthen chunks that were outranking the
+right answer. Prefixing only the town guides would have been tuning the
+chunker to the one question I was trying to fix, which is the same thing as
+writing the answer into the system.
+
 **Why I picked it:**
 
-<!-- Connect it to a specific diagnosis above in one sentence. If you can't,
-     you picked a fix because it sounded impressive. -->
+It is the fix the diagnosis actually pointed at: 61 of 72 place-guide chunks
+did not contain the name of the place they described, and this puts the name
+back.
+
+The option I did not take is worth recording, because it was the obvious one.
+Hybrid search with BM25 is the standard answer to a retrieval miss and is
+already in `requirements.txt`. It would not have fixed this one. BM25 matches
+literal terms against chunk text, and the chunk I needed —
+`guide_brightwater.md#2` — did not contain the word "Brightwater". It said
+"The town is walkable end to end." The keyword half would have scored it near
+zero on the only term that mattered, exactly as the semantic half did, while
+happily ranking the 33 chunks in *other* documents that do say "Brightwater".
+The diagnosis is what ruled it out; without having counted the missing place
+names I would have built it.
+
+**What I argued against myself before building it.** Three things, recorded
+because two of them were wrong and one was right:
+
+1. *It strengthens the competitors too.* Prefixing helps every chunk, so
+   `guide_walking.md#0` would gain "Walking in the region" on a question about
+   walking. **Correct in principle, irrelevant in practice.** That chunk's
+   distance did not move at all — 0.2526 before and after. The chunk that was
+   missing its own name gained far more than the chunk that was not.
+2. *It dilutes every chunk by adding the same tokens to all of them.* **Did not
+   materialise.** Distances improved or held on all five questions.
+3. *It puts a second heading line in every chunk, which brushes against
+   criterion 4.* **Fair, and I re-scored rather than carrying the old number
+   forward.** Still 5 of 5 sampled and still 0 of 117 chunks spanning more than
+   one `##` section: a chunk with `# Brightwater` above `## Getting around` has
+   two heading lines and one topic, which is the standard criterion 4 states.
 
 ### Run Log — After
 
-<!-- Same format, same five criteria, three runs each.
-     `python run_eval.py --label after` -->
+Produced by `run_eval.py::main` and `run_eval.py::check_out_of_scope`, three
+runs per question, caching off, 2026-10-05 00:35. Full log:
+`results/run_2026-10-05_0035_after.md`. Scored with the same rules as the
+before run.
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| 1. Retrieved chunk contains the answer | 4 of 5 | 5 | 5 | 5 | **MET** |
+| 2. Every answer names a source | 5 of 5 | 5 | 5 | 5 | **MET** |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5 | 5 | 5 | **MET** |
+| 4. One `##` section per chunk | 4 of 5 sampled | 5 | 5 | 5 | **MET** |
+| 5. States the conclusion in the form asked for | 4 of 5 | 5 | 5 | 5 | **MET** |
+
+Side by side:
+
+| Criterion | Before | After | Delta |
+|---|---|---|---|
+| 1 | 4, 4, 4 — MISSED | 5, 5, 5 — MET | +1 on every run |
+| 2 | 5, 5, 5 — MET | 5, 5, 5 — MET | — |
+| 3 | 5, 5, 5 — MET | 5, 5, 5 — MET | — |
+| 4 | 5, 5, 5 — MET | 5, 5, 5 — MET | — (re-scored, not carried forward) |
+| 5 | 2, 3, 3 — MISSED | 5, 5, 5 — MET | +2 on every run |
+
+What moved underneath criterion 1:
+
+| Question | Answer chunk before | Answer chunk after |
+|---|---|---|
+| Brightwater | rank 15 of 117, never retrieved | **rank 1**, distance 0.4160 → 0.1971 |
+| Elder Ness | never retrieved; the question passed only because `guide_eating.md` duplicates the fact | **rank 1** — `guide_elder_ness.md#3`, the town's own guide |
+| Kestrelford | rank 5 of 5, last slot | **rank 1**; all five retrieved chunks now come from Kestrelford's own guide |
+
+The Brightwater answer, before:
+
+```
+Based on the provided documents, the text does not mention how long it takes to
+walk around the town of Brightwater itself. However, it notes that the
+Brightwater river path runs four miles upstream from the town to a weir, and
+continuing downstream from Givens Mill reaches Brightwater in about three hours
+(guide_walking.md).
+```
+
+and after:
+
+```
+The town of Brightwater can be walked end to end in about 35 minutes.
+
+Source: `guide_brightwater.md`
+```
 
 **Did it help?**
 
-<!-- Say plainly whether it did, and how you know. If it made things worse,
-     say that — a change that backfired, honestly reported, earns full credit
-     and is more interesting than one that worked. What matters is that you can
-     tell.
+Yes, and it fixed more than it aimed at. Both missed criteria now pass on every
+run, and the two that were already passing did not regress.
 
-     Milestone 4. -->
+The part I did not predict is criterion 5. That was a *generation* diagnosis
+and I changed the *chunker* — I expected it to move nothing. It went from
+2, 3, 3 to 5, 5, 5. The mechanism turns out to be indirect and real:
+concentrating retrieval onto the right document pulled in a second Marchwood
+chunk that had never been retrieved before.
+
+```
+# Marchwood
+## Where to stay
+Plentiful and, outside conference weeks, cheap.
+```
+
+With that sentence in context, all three runs flipped from negative framing to
+positive. Before, every run said *"you should avoid conference weeks in March
+and October"*. After, run 1 says *"You should book outside of conference weeks
+in March and October"*, and runs 2 and 3 add *"Outside of conference weeks,
+hotels are cheap."* I checked that this is a change in the output and not a
+change in how I was scoring: the revised criterion 5 rule gives the before run
+2, 3, 3, exactly as the original wording did, and the difference between
+"avoid X" and "book outside X" is visible in the text.
+
+**The caveat, which matters more than the number.** Criterion 5's underlying
+weakness was never fixed. The model still prefers the salient-looking half of a
+chunk over the half that answers the question — I just fed it better context
+until that stopped mattering for these five questions. If the `## Where to
+stay` chunk had not come along for the ride, Marchwood would very likely still
+be failing. A 5 of 5 that depends on a lucky second chunk is not the same thing
+as a system that reasons over what it is given, and I would not expect this
+result to hold on a sixth question of the same shape.
+
+Two smaller things worth recording. The gate was unaffected — out-of-corpus
+distances moved by at most 0.023 and all five still refuse with wide margin, so
+putting place names into every chunk did not drag unrelated questions closer to
+the corpus. And retrieval got noticeably more *concentrated*: Kestrelford now
+returns five chunks from one document where it used to return four documents,
+and Pellew Sands four from one. That is the intended effect, but it is also a
+narrowing — a question whose answer genuinely spans two guides now has less
+room to find the second one.
 
 ## What's Still Broken
 

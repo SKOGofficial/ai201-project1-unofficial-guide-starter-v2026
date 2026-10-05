@@ -161,6 +161,49 @@ def _blocks(text: str) -> list[str]:
     return blocks
 
 
+def _doc_title(text: str) -> str:
+    """
+    The document's level-1 heading line, or "" if it has none.
+
+    Unit 2 change. Every guide names its town exactly once, in this line, and
+    the section split throws it away for every chunk but the first. See
+    `_with_title`.
+    """
+    for line in text.splitlines():
+        if line.startswith("# "):
+            return line.strip()
+    return ""
+
+
+def _with_title(piece: str, title: str) -> str:
+    """
+    Put the document's title line back on top of a section chunk.
+
+    Why this exists. `_blocks` splits on `##` section headings, which is what
+    criterion 4 asked for and which works. It also severs each section from the
+    `# Town Name` line at the top of the file — and these guides name their
+    town in that line and almost nowhere else. Before this change, 61 of the 72
+    place-guide chunks did not contain the name of the place they described, so
+    "how long to walk the town of Brightwater" was matched against a chunk
+    reading "The town is walkable end to end in about 35 minutes" with nothing
+    in it to say which town. It ranked 15th of 117.
+
+    The title is restored verbatim rather than paraphrased: it is the
+    document's own words put back where the split removed them, not new text.
+    Applied to every document uniformly, including the regional guides whose
+    titles ("Walking in the region") strengthen chunks that currently outrank
+    the right answer. Prefixing only the town guides would be tuning the
+    chunker to the question it is meant to fix.
+
+    Chunks that already open with the title -- chunk 0 of each document, where
+    `_blocks` carries the heading forward -- are left alone rather than
+    repeating it.
+    """
+    if not title or piece.startswith(title):
+        return piece
+    return f"{title}\n{piece}"
+
+
 def split_documents(documents: list[Document]) -> list[Chunk]:
     """
     Split documents on paragraph boundaries rather than character counts.
@@ -176,11 +219,16 @@ def split_documents(documents: list[Document]) -> list[Chunk]:
         goes through `_split_long` with CHUNK_OVERLAP (100) shared characters.
       - CHUNK_MIN (50) keeps fragments out. Nothing below it survives as its
         own chunk — it merges into a neighbour instead.
+      - Unit 2: each chunk is prefixed with its document's `# Title` line, so
+        a section chunk carries the name of the place it is about. The size
+        ceiling is applied to the body before the title goes on, so a chunk may
+        exceed CHUNK_SIZE by the length of its title. See `_with_title`.
     """
     chunks: list[Chunk] = []
 
     for doc in documents:
         index = 0
+        title = _doc_title(doc.text)
         for block in _blocks(doc.text):
             if len(block) <= config.CHUNK_SIZE:
                 pieces = [block]
@@ -190,7 +238,7 @@ def split_documents(documents: list[Document]) -> list[Chunk]:
             for piece in pieces:
                 chunks.append(
                     Chunk(
-                        text=piece,
+                        text=_with_title(piece, title),
                         source=doc.source,
                         index=index,
                         produced_by="chunker.py::split_documents",
