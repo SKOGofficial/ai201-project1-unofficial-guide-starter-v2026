@@ -275,27 +275,244 @@ chunk holding where to stay, when to go, and practical notes together.
 
 ## Run Log — Before
 
-<!-- Your five criteria, three runs each. `python run_eval.py --label before`
-     runs the questions, puts the OUT_OF_SCOPE ones through the gate, and
-     writes it all into results/ for you. Targets come from criteria.md; the
-     verdict column is your call.
+Produced by `run_eval.py::main` (the five questions) and
+`run_eval.py::check_out_of_scope` (the gate), three runs per question, caching
+off, 2026-10-04 22:42. Full log: `results/run_2026-10-04_2242_before.md`.
 
-     Criterion 3 is measured in one deterministic pass rather than three, so
-     the same number goes in all three run columns. That's correct, not lazy.
-
-     Milestone 1. -->
+Criterion 3 is measured in one deterministic pass rather than three, so the
+same number goes in all three run columns. Criterion 1 is also deterministic —
+retrieval does not vary between runs unless the index changes — so it too is
+constant across the three. Criteria 2 and 5 are the only ones that can move.
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| 1. Retrieved chunk contains the answer | 4 of 5 | 4 | 4 | 4 |  |
+| 2. Every answer names a source | 5 of 5 | 5 | 5 | 5 |  |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5 | 5 | 5 |  |
+| 4. One `##` section per chunk | 4 of 5 sampled | 5 | 5 | 5 |  |
+| 5. Answer states the conclusion in the form asked for | 4 of 5 | 2 | 3 | 3 |  |
 
-<!-- Underneath, paste the REAL output for each criterion from one of your
-     runs — the actual text your system produced, not a description of it.
-     Name the file and function that produced it. -->
+### A note on measurement, before the numbers
+
+Before scoring anything I audited the `expects` field on all five questions in
+`questions.py` against the corpus. Three of them described things the corpus
+does not say — a 9 AM to 12 PM shopping window in Elder Ness, an off-season
+fall-and-winter answer for Marchwood that the guide directly contradicts, and a
+lighthouse and art gallery in Pellew Sands that do not exist. A fourth said
+"town square" where `guide_kestrelford.md` says "market square". All five were
+also written as full sentences, so no substring check could ever have matched
+one.
+
+I corrected all five to short key phrases drawn from the corpus. This is a
+**measurement correction, not a system change** — `expects` only feeds a scorer
+and there is no scorer, so no pipeline behaviour moved and the before run above
+stayed valid without re-running it. It does not consume the one-change budget
+for this unit. The originals are preserved in comments in `questions.py`.
+
+### Criterion 1 — retrieved chunks contain the answer
+
+Scored by reading the retrieved chunk text directly out of `store.py::search`,
+not from the answer. Four of five questions had their answer in the top five.
+
+| Question | Answer in retrieved chunks? | Where |
+|---|---|---|
+| Brightwater walking time | **No** | `guide_brightwater.md` never appears in the top five |
+| Elder Ness shop hours | Yes | `guide_eating.md#8`, rank 1 |
+| Marchwood booking | Yes | `guide_marchwood.md#6`, rank 2 |
+| Pellew Sands sights | Yes | `guide_pellew_sands.md#4`, rank 3 |
+| Kestrelford meetup | Yes | `guide_kestrelford.md#2`, rank 5 |
+
+The Brightwater miss, in full. The sentence that answers the question is in
+`guide_brightwater.md`: "The town is walkable end to end in about 35 minutes."
+Here is what retrieval returned instead:
+
+```
+--- [1] guide_walking.md#0  dist=0.2526 ---
+# Walking in the region
+## Easy, on good surfaces
+The **Brightwater river path** runs four miles upstream from the town to a weir,
+on a made surface, flat throughout. It is the most-walked route in the region
+and deservedly so. Continuing downstream from Givens Mill reaches Brightwater in
+about three hours.
+
+--- [2] guide_walking.md#7  dist=0.2803 ---
+## Seasonal notes
+Add four minutes to any Brightwater walking estimate in winter; the path past
+the pond ices over and people take the long way round.
+
+--- [3] guide_pellew_sands.md#1  dist=0.2812 ---
+## Getting there
+... Driving is 50 minutes from Brightwater. ...
+
+--- [4] guide_marchwood.md#1  dist=0.2835 ---
+## Getting there
+... Trains to Brightwater run every 40 minutes until 11pm. ...
+
+--- [5] guide_thornby_wells.md#1  dist=0.2972 ---
+## Getting there
+... Driving from Brightwater is 45 minutes on good roads. ...
+```
+
+Every one of the five mentions Brightwater. None of them is about walking
+around Brightwater. Note also that Kestrelford's answer chunk landed in the
+last available slot — at `TOP_K = 4` this criterion would have scored 3 of 5.
+
+### Criterion 2 — every answer names a source
+
+5 of 5 in all three runs, 15 of 15 answers. Real output, run 1:
+
+```
+Based on the provided documents, the text does not mention how long it takes to
+walk around the town of Brightwater itself. However, it notes that the
+Brightwater river path runs four miles upstream from the town to a weir, and
+continuing downstream from Givens Mill reaches Brightwater in about three hours
+(guide_walking.md).
+```
+
+```
+In Elder Ness, the shop closes at 5pm and is closed on Sundays (guide_eating.md).
+```
+
+```
+According to `guide_marchwood.md`, you should avoid conference weeks in March
+and October, as they fill the hotels and double the prices.
+```
+
+```
+Based on the provided documents, what there is to see in Pellew Sands includes
+the 1890s pier (whose surviving half is open and free after being partly
+destroyed by fire in 1978), the municipal gardens behind the seafront, and the
+two-mile beach of hard sand.
+
+Source: `guide_pellew_sands.md`
+```
+
+```
+Everything in Kestrelford is within a ten-minute walk of the market square
+(`guide_kestrelford.md`).
+```
+
+The three Brightwater answers are worth noting here: all three correctly
+declined to invent a walking time, and all three still named a source. The
+criterion asks only whether a source is named, not whether it was the right
+one, and this is exactly the case that separates the two.
+
+### Criterion 3 — the relevance gate
+
+Produced by `run_eval.py::check_out_of_scope`, cutoff 0.6. Refused 5 of 5.
+
+| Out-of-scope question | Best distance | Gate |
+|---|---|---|
+| What is the capital of Mongolia? | 0.803 | refused |
+| How do I change the oil in a diesel engine? | 0.892 | refused |
+| Who won the 1994 World Cup? | 0.975 | refused |
+| What is the recommended dosage of ibuprofen for a headache? | 0.849 | refused |
+| How do I write a for loop in Rust? | 0.813 | refused |
+
+The closest out-of-corpus question sits 0.29 above the worst in-corpus one. The
+gap I measured in Milestone 4 held.
+
+### Criterion 4 — one `##` section per chunk
+
+From `app.py chunks`, which prints five chunks spread across the corpus,
+produced by `chunker.py::split_documents`. All five carry exactly one topic:
+
+```
+Chunk 1  |  source: guide_accessibility.md#0
+# Getting around the region with limited mobility
+An honest assessment rather than a promotional one. Some of these places are
+difficult and it is better to know in advance.
+
+Chunk 2  |  source: guide_corry_vale.md#4
+## What to see
+The valley itself is the attraction. The footpath network is dense and well
+marked, and a circuit taking in three of the four villages is about nine miles
+with 500 metres of ascent. The chapel in the second village is 12th century and
+always unlocked.
+
+Chunk 3  |  source: guide_givens_mill.md#2
+## Getting around
+Everything is on one street along the river. The mill is at one end and the
+church at the other, eight minutes apart. The riverside path continues in both
+directions for as far as you want to walk.
+
+Chunk 4  |  source: guide_marchwood.md#1
+## Getting there
+Every railway line in the region meets here, which is the city's defining
+feature. Trains to Brightwater run every 40 minutes until 11pm. The airport is
+20 minutes out by a dedicated bus that runs every 15 minutes and costs more than
+the equivalent taxi shared between three people.
+
+Chunk 5  |  source: guide_seasons.md#0
+# When to visit the region
+## Spring, March to May
+Days lengthen quickly and businesses that closed for winter reopen through March
+and April. By May everything is open and the weather is reliable enough to plan
+around.
+```
+
+Two of these are judgement calls I should name rather than hide.
+`guide_accessibility.md#0` has *zero* `##` headings — it is the document
+preamble under a `#` title. `guide_seasons.md#0` carries the `#` document title
+plus one `##` section. I scored both as passes on the standard the criterion
+actually states — "no chunk spans two topics" — rather than on a literal count
+of `##` lines, and neither spans two topics.
+
+Because the five-chunk sample is small and the two borderline calls could be
+argued, I also checked every chunk in the corpus. **Zero of 117 chunks span
+more than one `##` section.** The specific failure named in criteria.md —
+`guide_corry_vale.md#2` carrying where-to-stay, when-to-go and practical-notes
+in one chunk — no longer exists. The paragraph-based chunker from Milestone 3
+closed this before unit 2 started, which means this criterion was already
+satisfied by work done before any of it was measured.
+
+### Criterion 5 — states the conclusion in the form asked for
+
+The criterion that moved between runs, and the only one that did.
+
+| Question | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| Brightwater walking time | ✗ | ✗ | ✗ |
+| Elder Ness shop hours | ✗ | ✓ | ✓ |
+| Marchwood booking | ✗ | ✗ | ✗ |
+| Pellew Sands sights | ✓ | ✓ | ✓ |
+| Kestrelford meetup | ✓ | ✓ | ✓ |
+| **Count** | **2 of 5** | **3 of 5** | **3 of 5** |
+
+Elder Ness is the clearest evidence in the whole log, because retrieval was
+byte-identical across all three runs and the answers were not.
+
+Run 1 — scored ✗, the raw fact with the last step left to me:
+
+```
+In Elder Ness, the shop closes at 5pm and is closed on Sundays (guide_eating.md).
+```
+
+Run 2 — scored ✓, same chunk, conclusion handed over:
+
+```
+Elder Ness has one shop, which is closed on Sundays and after 5pm, so you should
+go shopping before 5pm on days other than Sunday (guide_eating.md).
+```
+
+Marchwood failed all three runs in the same way. The chunk it was given opens
+with the words "Any time":
+
+```
+## When to go
+Any time. This is the one place in the region that works in winter, since almost
+everything is indoors and nothing closes seasonally. Conference weeks in March
+and October fill the hotels and double the prices; check before booking.
+```
+
+Every run returned only the second half of that:
+
+```
+You should avoid booking during the conference weeks in March and October, as
+these weeks fill the hotels and double the prices (guide_marchwood.md).
+```
+
+I asked when to book. It told me when not to.
 
 ## Verdicts
 
