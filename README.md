@@ -260,6 +260,33 @@ exactly one `##` section. The evidence for why it was worth measuring came out
 of the starter's own output — `guide_corry_vale.md#2` was a single 800-character
 chunk holding where to stay, when to go, and practical notes together.
 
+**3. Unit 2: checking what "correct" meant before scoring anything against it.**
+Before any criterion was scored I had Claude audit the `expects` field on all
+five questions in `questions.py` against the corpus, one grep per claim. Three
+of the five described things my documents do not say. Elder Ness expected "9 AM
+to 12 PM"; `guide_elder_ness.md` gives no opening hour at all, only that the
+shop closes at 5pm and all day Sunday. Marchwood expected "off-season, fall and
+winter"; the guide says the opposite — any time works, winter explicitly
+included, and the thing to avoid is conference weeks in March and October.
+Pellew Sands expected a historic lighthouse and a local art gallery; neither
+exists anywhere in the corpus, which has an 1890s pier, municipal gardens and a
+two-mile beach. A fourth said "town square" where `guide_kestrelford.md` says
+"market square". All five were also written as full sentences rather than the
+short phrase the docstring asks for, so no substring check could ever have
+matched one.
+
+What makes this worth writing down is what would have happened without it. The
+Pellew Sands answers were correct in all six runs across both evals, and
+scoring them against an expected lighthouse would have marked all six as
+failures. Marchwood is worse: the corrected expects is "any time except
+conference weeks in March and October", and the after run produces exactly
+that — so the original expects would have scored my one genuine improvement as
+a regression. I wrote those sentences in unit 1 from memory of documents I
+thought I had read closely, and I had not. Checking them cost a few greps and
+no model calls, since `expects` only feeds a scorer and there is no scorer yet,
+which also meant the correction needed no re-run and did not consume this
+unit's one allowed change.
+
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
      claims earns nothing.
@@ -269,9 +296,6 @@ chunk holding where to stay, when to go, and practical notes together.
 
 # Unit 2
 
-<!-- These sections get ADDED to what's already above. Don't delete or rewrite
-     unit 1 — the point is that someone can see what you said before you knew
-     how it went. -->
 
 ## Run Log — Before
 
@@ -896,17 +920,95 @@ room to find the second one.
 
 ## What's Still Broken
 
-<!-- For each criterion still missed after your fix: what you'd do about it,
-     and why you stopped where you did.
+All five criteria pass on every run, so nothing here is a missed criterion.
+These are the things the green table does not detect.
 
-     "I ran out of time" is fine if it's true. Pretending nothing is left is
-     not.
+**1. Criterion 5's weakness is masked, not fixed.** This is the real one. The
+diagnosis was that the model returns the salient-looking half of a chunk rather
+than the half that answers the question. I never touched the prompt. Criterion
+5 went to 5 of 5 because retrieval improved enough to hand the model a second
+Marchwood chunk saying "Plentiful and, outside conference weeks, cheap", and
+with that present all three runs framed the answer positively. The behaviour
+that produced three failures is still in there.
 
-     Milestone 5. -->
+*What I would do:* add a rule to `generate.py::GROUNDING_INSTRUCTION` requiring
+the answer to address the question in the terms it was asked. Then test it
+properly, which means deliberately withholding `guide_marchwood.md#5` from the
+context and checking whether the Marchwood answer reverts to "avoid conference
+weeks". A fix that only passes with the lucky chunk present has not been
+tested.
+
+**2. Retrieval got narrower, and I have not measured the cost.** Kestrelford
+now returns five chunks from one document where it used to return four
+documents; Pellew Sands returns four from one. That is the intended effect of
+putting place names into every chunk, but the same force that concentrates
+retrieval onto the right guide would also suppress a genuinely cross-document
+answer. None of my five questions needs two guides, so none of them could have
+shown me this.
+
+*What I would do:* write a question whose answer requires two documents — a
+comparison between towns, say — and check whether both guides still appear.
+
+**3. The gate's hard cases are still untested, and may have got harder.**
+Criterion 3 passes 5 of 5, but unit 1 said in writing why that number is
+hollow: the genuinely difficult refusals are questions that borrow this
+corpus's vocabulary without being answerable from it, and those score 0.47 to
+0.53, inside the in-corpus range, where no distance cutoff can reach them.
+Prefixing every chunk with a place name plausibly made this *worse* — "is there
+a cinema in Marchwood?" now has 8 chunks saying "Marchwood" instead of 2 to
+match against. I did not measure it. The out-of-corpus five moved by at most
+0.023, but those were never the hard cases.
+
+*What I would do:* re-measure the near-miss questions from Milestone 4 against
+the new index and see whether the prefix pulled them toward the corpus.
+
+**4. Criterion 1 passes 5 of 5 on five questions I wrote myself,** against
+documents I had already read, which is as favourable a test as this system will
+ever get.
+
+**Why I stopped here.** Not time, and not the one-change rule — though that
+rule is real and I used my change. I stopped because all five criteria now
+pass, and every problem above is one the current five criteria cannot detect.
+Writing more code against them would be work with no way to tell whether it
+helped: I could tighten the grounding prompt tomorrow and criterion 5 would
+read 5 of 5 before and after, because it already does. The next useful step is
+not a fix, it is criteria that can see these failures — a near-miss refusal
+set for the gate, a cross-document question for retrieval breadth, and a
+criterion 5 test that withholds the helpful chunk. Fixes after that.
 
 ## What I'd Do Differently
 
-<!-- Knowing what you know now — which of your five criteria would you write
-     differently, and why?
+**Criterion 3 — the relevance gate.** It is the one I would rewrite, and the
+uncomfortable part is that I already knew why when I wrote it. The unit 1
+reasoning says so directly: *"the genuinely hard cases aren't in `OUT_OF_SCOPE`
+at all"*, and that questions borrowing this corpus's vocabulary score 0.47 to
+0.53, inside the in-corpus range, where no cutoff can refuse them without also
+refusing real questions.
 
-     Milestone 5. -->
+I wrote that down and then measured the easy half anyway. Five questions about
+Mongolia, diesel engines, the 1994 World Cup, ibuprofen and Rust are not a test
+of a relevance gate on a travel corpus — they are a test of whether the
+embedding model can tell travel writing from everything else, which was never
+in doubt. They came back at 0.803 to 0.975 against a 0.6 cutoff. The criterion
+passed 5 of 5 in both runs and told me nothing I did not know before I ran it,
+in a unit where criterion 1 told me something I had no idea about.
+
+The rewrite would replace the out-of-scope set with near-miss questions: a
+cinema in Marchwood, a hotel with a pool in Brightwater, a Sunday train to
+Elder Ness — things this corpus plausibly *could* answer and does not. Those
+are the questions where a wrong answer is dangerous, because a confident
+fabrication about Marchwood is far worse than a confident fabrication about
+Mongolia, and the gate is the only thing standing in front of them. A target
+would have to be lower than 4 of 5, because the distances genuinely overlap
+with real questions and some of those refusals have to come from the grounding
+prompt rather than the cutoff. A criterion I expected to pass 3 of 5 would have
+taught me more than one I was certain would pass 5 of 5.
+
+There is a second reason this is the one. The improvement I made this unit
+pushes directly on it: every chunk now carries its town's name, so "is there a
+cinema in Marchwood?" has eight chunks saying "Marchwood" to match against
+instead of two. If my change made the gate's hard cases harder — which I think
+is more likely than not — criterion 3 as written is structurally incapable of
+reporting it, and would keep showing 5 of 5 while the system got worse at the
+thing the gate exists for.
+
