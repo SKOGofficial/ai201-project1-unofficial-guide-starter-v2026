@@ -587,23 +587,151 @@ against the unit 1 target either way.
 
 ## Diagnoses
 
-<!-- For each miss: which stage caused it, and how. The stage alone isn't
-     enough — you need the mechanism.
+Two criteria missed, and they failed at different stages for unrelated
+reasons. Fixing either one cannot fix the other: Marchwood's chunk already
+arrives correctly, and Brightwater's never arrives at all.
 
-     Not a diagnosis: "Question 3 didn't work."
-     A diagnosis:     "Question 3 asks about laundry costs. The answer is in
-                       one sentence that got split across two chunks, so
-                       neither chunk on its own contains it."
+### Criterion 1 — chunking, surfacing as retrieval
 
-     The five stages: loading → chunking → embedding → retrieval → generation.
+**Stage: chunking.** The symptom appears at retrieval. The cause is one stage
+earlier.
 
-     Look for a pattern. If three misses all ask about numbers, that's one
-     problem, not three.
+`chunker.py::split_documents` splits on `##` section headings. That is exactly
+what criterion 4 asked for, and it works. It also severs every section from
+the `#` document title at the top of the file — and these guides name their
+town in the title and almost nowhere else. Counted across the corpus:
 
-     Missed nothing? Say so, then say honestly whether your targets were set
-     low, and which one you'd tighten and to what.
+```
+guide_brightwater.md    title='Brightwater'    2/8 chunks contain it
+guide_kestrelford.md    title='Kestrelford'    1/8 chunks contain it
+guide_elder_ness.md     title='Elder Ness'     1/8 chunks contain it
+guide_marchwood.md      title='Marchwood'      2/8 chunks contain it
+...
+place-guide docs: 11 of 72 chunks carry their own place name
+```
 
-     Milestone 3. -->
+**61 of 72 place-guide chunks do not contain the name of the place they are
+about.** Essentially only chunk `#0`, the title chunk, carries it.
+
+So a question about Brightwater is matched against a corpus offering 35 chunks
+containing the word "Brightwater", **33 of which are in some other document** —
+other towns' guides saying how far they are from it, the regional transport
+guide, the walking guide. The chunk that answers the question is among the six
+Brightwater chunks that never say "Brightwater".
+
+Here is where the correct chunk actually ranked, out of all 117:
+
+```
+RANK 15  dist=0.4160  guide_brightwater.md#2
+## Getting around
+The town is walkable end to end in about 35 minutes. The local bus runs two
+routes on a 30-minute headway until 7pm and stops entirely on Sundays.
+```
+
+Not just outside the top five — rank 15. Fourteen chunks beat it. The one that
+makes the point:
+
+```
+RANK 7   dist=0.3177  guide_corry_vale.md#1
+## Getting there
+There is no public transport into the valley beyond a school bus that will
+carry passengers if there is room. Driving from Brightwater takes 35 minutes
+on a good road as far as the valley mouth and then 20 more on a poor one.
+```
+
+A chunk about driving into Corry Vale, which happens to contain the literal
+string "35 minutes", beat the chunk that answers the question — because it says
+"Brightwater" and the right one does not.
+
+**One mechanism, three scoring events.** This is not only the Brightwater miss.
+It explains every difficulty criterion 1 had:
+
+| Chunk | What it says | Contains its own town's name? | Outcome |
+|---|---|---|---|
+| `guide_brightwater.md#2` | "The town is walkable end to end in about 35 minutes." | No | rank 15 — **missed** |
+| `guide_elder_ness.md#3` | "A shop that sells basics and closes at 5pm and all day Sunday." | No | never retrieved; the question was rescued by `guide_eating.md#8`, which does say "Elder Ness has one shop" |
+| `guide_kestrelford.md#2` | "Everything is within a ten-minute walk of the market square." | No | rank 5 of 5 — scraped in on the last slot |
+
+Three separate scoring events with one cause. The pattern is that every one of
+these chunks answers a question about a town using the word "the town", and
+the embedding has no way to know which town that is.
+
+**Criterion 4's fix is what caused this.** The Milestone 3 chunker closed
+criterion 4 completely — 117 of 117 chunks now hold exactly one section, and
+the `guide_corry_vale.md#2` three-topic chunk named in criteria.md is gone. It
+achieved that by cutting on headings, which is the same cut that orphaned every
+section from its town name. The two criteria are coupled, and I could not have
+seen it before there were results: criterion 4 reads as a pure improvement
+right up until you measure criterion 1.
+
+**Distance was no help at all here.** Brightwater had the *best* best-distance
+of all five questions — 0.2526, better than Pellew Sands' 0.3297, which passed
+— and it failed harder than any other question. The gate waved it through with
+0.35 of margin. The question the system was most confident about is the one it
+got most wrong, which means a low distance says "something in the corpus uses
+these words", not "the answer is here". Had the gate been the only safeguard,
+nothing would have flagged this.
+
+### Criterion 5 — generation
+
+**Stage: generation.** The right chunk arrives, and the answer stops one step
+short of the question.
+
+The mechanism is **salience, not brevity**: given a chunk, the model returns
+the part that *looks* most like an answer rather than the part that *is* the
+answer. A specific, concrete, surprising-sounding detail beats a short flat
+statement, even when the short flat statement is the thing that was asked for.
+
+Marchwood is the clean demonstration. The chunk it received:
+
+```
+## When to go
+Any time. This is the one place in the region that works in winter, since
+almost everything is indoors and nothing closes seasonally. Conference weeks in
+March and October fill the hotels and double the prices; check before booking.
+```
+
+The answer to "when should I book" is the first two words. All three runs
+returned only the second half:
+
+```
+You should avoid booking during the conference weeks in March and October, as
+these weeks fill the hotels and double the prices (guide_marchwood.md).
+```
+
+"Any time" is two words, carries no detail, and reads like a non-answer.
+"Conference weeks in March and October, which double the prices" has named
+months, a named cause and a quantified effect. The model picked the half that
+performs expertise. I asked when to book; it told me when not to, confidently,
+and the actual answer was sitting in front of it in the first two words of the
+chunk it was handed.
+
+Elder Ness shows the same preference at smaller scale, and is a controlled
+comparison because retrieval was byte-identical across all three runs:
+
+```
+run 1 (scored MISS):
+In Elder Ness, the shop closes at 5pm and is closed on Sundays (guide_eating.md).
+
+run 2 (scored PASS):
+Elder Ness has one shop, which is closed on Sundays and after 5pm, so you should
+go shopping before 5pm on days other than Sunday (guide_eating.md).
+```
+
+The concrete closing time is the salient fact; the instruction to the reader is
+the derived one. Run 1 returned the fact and stopped. Runs 2 and 3 spent one
+more clause and converted it.
+
+`generate.py::GROUNDING_INSTRUCTION` does nothing to counter this. Its four
+rules are all about grounding and citation — use only these documents, refuse
+if they do not cover it, name the file, be brief. **Not one of them says to
+answer the question in the form it was asked.** The one stylistic instruction
+present, "Be brief. Two or three sentences is usually enough", mildly
+reinforces the failure, since the derived conclusion is always the longer
+sentence. But brevity is the secondary effect. Run 2's passing answer was also
+brief. The primary effect is that nothing in the prompt tells the model that
+answering the question matters more than reporting an impressive fact from the
+chunk.
 
 ## The Improvement
 
