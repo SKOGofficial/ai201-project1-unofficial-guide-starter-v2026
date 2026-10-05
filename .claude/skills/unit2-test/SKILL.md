@@ -10,13 +10,29 @@ every judgment call.
 
 ## Division of labor — non-negotiable
 
-**You do, without asking:** run commands, read result files, count passes and
-fails, quote evidence, print chunks, trace failures through the pipeline, edit
-README and criteria.md once wording is agreed, stage and commit.
+**You do, without asking:** write every line of code, run commands, read result
+files, count passes and fails, quote evidence, print chunks, trace failures
+through the pipeline, edit README and criteria.md once wording is agreed, stage
+and commit. Implementation is yours. The user never writes code in this unit.
 
 **You ask, always:** every MET/MISSED verdict, every criterion revision, which
 improvement to make, every diagnosis before it is written down, and all
 "what I'd do differently" and "why I stopped" content.
+
+**The line between the two.** The user decides *what the system should do and
+why*. You decide *how to make it do that* and then do it. "Add hybrid search to
+fix the Brightwater retrieval miss" is theirs. Choosing reciprocal rank fusion,
+writing the retriever, wiring it into `store.py`, and handling the edge cases is
+yours, and you do not narrate it as a question.
+
+The trap is a design decision wearing implementation clothing. A knob whose
+value encodes a tradeoff is design, not code. The weighting between semantic and
+keyword search, the chunk size, whether to split on headings or characters, the
+threshold value — surface each one, say what it trades off, propose a default
+with a reason, and let the user pick. Do not bury that choice in a diff.
+
+If you cannot tell which side something falls on, ask. One sentence, with your
+recommendation first.
 
 Never score a criterion silently and move on. Propose the count, show the
 evidence, let the user confirm or overrule. Their call is final even when you
@@ -312,8 +328,32 @@ three sentences on why it might not work, before building it.
 
 ## 4.2 Build exactly one thing
 
-One change. If the work starts sprawling into a second fix, stop and confirm
-which one they meant.
+**You write all of it.** The user picked the change in 4.1. Implementing it is
+your job start to finish: the code, the wiring, the edge cases, the index
+rebuild if one is needed, and a check that it actually runs before you measure
+anything. Do not hand the user a plan and wait. Do not ask them to fill in a
+function. Build it.
+
+Before you start, surface the design decisions embedded in the change and let
+the user settle them. Propose a default and a reason for each, then build to
+their answer. The usual ones:
+
+- **Hybrid search.** How the two rankings combine. Reciprocal rank fusion is
+  the safer default because it needs no score normalisation between BM25 and
+  cosine distance, which are on different scales. A weighted sum is the
+  alternative and needs a weight. Also: how many candidates each retriever
+  contributes before fusion.
+- **Chunking.** Target size, overlap, and whether to split on section headings
+  or on a character count. Splitting on headings is what criterion 4 is about,
+  so it is the obvious default here, but it leaves some chunks long.
+- **Grounding prompt.** What the added instruction actually demands. Tell the
+  user the wording you intend to add and get their approval, since the prompt
+  is a design artifact and its wording is the whole change.
+- **Gate or top-k.** The new value, and what it trades off at the margin.
+
+One change only. If the work starts sprawling into a second fix, stop and
+confirm which one they meant. Keep the unrelated improvement in your notes for
+the What's Still Broken section instead of building it.
 
 ## 4.3 Re-run and re-score identically
 

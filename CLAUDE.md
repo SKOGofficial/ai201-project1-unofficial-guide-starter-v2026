@@ -8,8 +8,12 @@ before any results existed. Unit 2 tests it against those criteria.
 
 Run the `unit2-test` skill. It drives the whole assignment: the eval run,
 scoring all five criteria, verdicts, diagnoses, one measured improvement, and
-the README write-up. It does the mechanical work and stops to ask on every
-judgment call.
+the README write-up.
+
+The split it enforces: the agent writes all the code and runs everything. The
+user makes the design and judgment calls — what to change and why, every
+verdict, every diagnosis, every criterion revision. A knob whose value encodes
+a tradeoff counts as a design call and gets surfaced, not buried in a diff.
 
 ## Environment
 
